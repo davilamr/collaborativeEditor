@@ -7,7 +7,7 @@ Platforms to edit online code are very useful when trying to learn and share , i
 The idea is that the creator of the document is the teacher and students join to edit this, one at a time.
 The technologies applied to this first 'Alpha' version are: NodeJS as server , MySQL as DBM and Bootstrap + Js to the client side .
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
+# -------------------------------------
 
 
 Editor de codigo colaborativo para el aula
