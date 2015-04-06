@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ACE Autocompletion demo</title>
+  <style type="text/css" media="screen">
+  
+
+
+	.errorHighlight{
+		position:absolute;
+		z-index:20;
+		background-color:#F4B9B7;
+		
+	}
+
+   #editor {
+       height: 550px;
+       
+   }
+   .panel-body{
+    height: 510px;
+    overflow-y:scroll; 
+   }
+
+    
+  </style>
+  
+  <!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+
+<!-- Optional theme -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap-theme.min.css">
+
+
+</head>
+<body>
+		
+		<nav class="navbar navbar-inverse navbar-fixed-top">
+		     <div class="container">
+		       <div class="navbar-header">
+		         <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+		           <span class="sr-only">Toggle navigation</span>
+		           <span class="icon-bar"></span>
+		           <span class="icon-bar"></span>
+		           <span class="icon-bar"></span>
+		         </button>
+		         <a class="navbar-brand" href="#">UTN Fra - Editor</a>
+		       </div>
+		       
+		       <ul class="nav navbar-nav">
+		            <li class="active"><a href="#">Archivo</a></li>
+		            <li><a href="#about">Editar</a></li>
+		            <li><a href="#contact">Ayuda</a></li>
+		            <li class="dropdown">
+		              <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">Lenguaje <span class="caret"></span></a>
+		              <ul class="dropdown-menu" role="menu">
+		                <li><a href="#">C</a></li>
+		                <li><a href="#">Java</a></li>
+		                <li class="divider"></li>
+		                <li class="dropdown-header">Python</li>
+		                <li><a href="#">Html</a></li>
+		                <li><a href="#">Java Script</a></li>
+		              </ul>
+		            </li>
+		       </ul>
+		       
+		       <div id="navbar" class="navbar-collapse collapse">
+		         <form class="navbar-form navbar-right">
+		           
+		           <button id="i_wish_be_master" class="btn btn-success">Quiero Editar</button>
+		           
+		           <div class="form-group">
+		             <input id="fileName" placeholder="File" class="form-control">
+		           </div>
+		           
+		           <button id="readFile" class="btn btn-success">Leer</button>
+		           <button id="joinFile" class="btn btn-success">Join</button>
+		           <button id="writeFile" class="btn btn-success">Guardar</button>
+		           
+		         </form>
+		       </div><!--/.navbar-collapse -->
+		  </div>
+		</nav>
+   		<div class="jumbotron" style = "margin-top: 10px;">
+			<div class="container">
+				<div class="row">     
+						<div class="col-sm-9">
+			               <div class="inner" id="editor"></div>
+						</div>
+						<div class="col-sm-3">
+							<div class="panel panel-default">
+					            <div class="panel-heading">
+					              		<h3 class="panel-title">Panel title</h3>
+					            </div>
+					            
+					            <div class="panel-body" id="users">
+					    
+					            		
+												            	
+								</div><!-- panel-body --> 
+								
+								
+							</div><!-- panel -->
+						</div> <!-- col -->
+
+				</div><!-- row -->
+			</div> <!-- container -->
+		        
+		        
+		        
+		        
+		        <div class="row">     
+		            <div class="col-sm-12">
+		                <form id="statusBar">
+					      	<input id="m" autocomplete="off" /><button id="send">Send</button>
+							<input type="radio" name="type" value="slave" checked>Esclavo
+							<input type="radio" name="type" value="master">Master
+						    <button id="newFile">New File</button>
+						    <button id="getFiles">Get Files</button>
+						    <select id="files">	</select>
+				    	</form>
+					</div>
+		        </div> 
+			</div>
+		</div>
+	 	   
+	<script src="js/socket.io-1.2.0.js"></script>
+	<script src="js/jquery-1.11.1.js"></script>
+	<!-- load ace -->
+	<script src="ace_src_noconflict/ace.js"></script>
+	<!-- load ace language tools -->
+	<script src="ace_src_noconflict/ext-language_tools.js"></script>
+	
+	<!-- Latest compiled and minified JavaScript -->
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+	
+	
+<script>
+
+	    // trigger extension
+	    var Range = ace.require("ace/range").Range;
+	    
+	    ace.require("ace/ext/language_tools");
+	    var editor = ace.edit("editor");
+	    editor.session.setMode("ace/mode/c_cpp");
+	    editor.setTheme("ace/theme/tomorrow");
+	    editor.$blockScrolling = Infinity;
+	    // enable autocompletion and snippets
+	    editor.setOptions({
+	        enableBasicAutocompletion: true,
+	        enableSnippets: true,
+	        enableLiveAutocompletion: false,
+	        fontSize: "14pt"
+	    });
+	    
+	    var flagCambio = false;
+	    var i_am_master = false; //defino si soy el master
+	    
+	    localStorage.fileId = -1;
+	    
+	    editor.on('input', function() {
+	    	console.log("CAMBIO CONTENIDO");
+	    	flagCambio = true;
+	    });
+	    
+	    editor.session.selection.on('changeCursor', function() {
+	    	console.log("CAMBIO CURSOR");
+	    	flagCambio = true;
+	    });	
+	    
+	    
+	    var erroneousLine;
+	    function unhighlightError(){
+	    	  editor.getSession().removeMarker(erroneousLine);
+	    }
+	    
+	    function highlightError(lineNumber) {
+	    	  unhighlightError();
+	    	  var Range = ace.require("ace/range").Range
+	    	  erroneousLine = editor.session.addMarker(new Range(lineNumber, 0, lineNumber, 144), "errorHighlight", "fullLine");
+	    }
+
+	    var count = 0;
+
+	    editor.commands.addCommand({
+	    	  name: 'markError',
+	    	  bindKey: {
+	    	    win: 'Ctrl-E', mac: 'Command-E',
+	    	    sender: 'editor|cli'
+	    	  },
+	    	  exec: function (env, args, request) {
+	    	    console.log('error...', env, args, request);
+	    	    highlightError(1);
+	    	  }
+	    	});	    
+	    
+	    editor.commands.addCommand({
+	    	  name: 'saveFile',
+	    	  bindKey: {
+	    	    win: 'Ctrl-S', mac: 'Command-S',
+	    	    sender: 'editor|cli'
+	    	  },
+	    	  exec: function (env, args, request) {
+	    	    console.log('saving...', env, args, request);
+	    	  }
+	    	});
+	    /*
+	    editor.session.selection.on('changeSelection', function() {
+	    	console.log("CAMBIO SELECCION");
+	    	
+	    	//var range = new Range(rowStart, columnStart, rowEnd, columnEnd);
+	    	
+	    	highlightError(count);
+	    	count++;
+	    	console.log(count);
+	    	editor.session.setAnnotations([
+	    	    { 
+                row: 1, 
+                column: 2, 
+                text: "Info",
+                type: "info" 
+              	},
+              	{ 
+                  row: 2, 
+                  column: 2, 
+                  text: "Aviso", 
+                  type: "warning" 
+                },
+              	{ 
+                  row: 3, 
+                  column: 2, 
+                  text: "Error", 
+                  type: "error" 
+                }
+	    	
+	    	]); 
+	    	
+	    		    	
+	    	
+	    	flagCambio = true;
+	    	
+	    });	
+	    */
+
+	    
+	    
+	    var socket = io();
+
+
+	    var actualizar = function(){
+	    	
+		 	userData = {'userId': localStorage.id,'token': localStorage.token ,'fileId':localStorage.fileId}
+		    socket.emit('file change',[editor.getSession().getValue(),editor.getCursorPosition(), userData]);
+		    return false;
+	    
+	    };
+	    
+	    var sync = function(){
+	    	
+	    	if(i_am_master && flagCambio == true)
+	    	{
+	    		console.log('SYNC');
+	    		actualizar();
+	    		flagCambio = false;
+	    	}
+	    	
+	    };
+	    
+	    setInterval(sync, 100);
+	    
+	    socket.on('file change', function(msg){
+	    	if (msg[2].fileId == localStorage.fileId)
+	    	{
+		    	if(!i_am_master)
+		    	{
+		    		editor.getSession().setValue(msg[0]);
+		    		editor.moveCursorTo(msg[1].row,msg[1].column)
+		    	}
+	    	}
+	    });
+	    
+	    
+	    socket.on('file content', function(msg){
+	    	console.log(msg);
+	    	if (msg[1] == localStorage.fileId && msg[2] == localStorage.id)
+	    	{
+	    		editor.getSession().setValue(msg[0]);
+	    	}
+	    	else
+	    	{
+	    		editor.getSession().setValue("//Empty file");
+	    	}
+	    });	
+	    
+	    
+	    $('#joinFile').click(function(){
+	    	var msg;
+	    	localStorage.fileId = $('#fileName').val();
+	    	userData = {'userId': localStorage.id,'token': localStorage.token ,'fileId':localStorage.fileId}
+	    	socket.emit('join file', userData);
+	       	return false;
+	    });
+	    
+	    $('#readFile').click(function(){
+	    	var msg;
+	    	localStorage.fileId = $('#fileName').val();
+	    	userData = {'userId': localStorage.id,'token': localStorage.token ,'fileId':localStorage.fileId}
+	    	socket.emit('get file', userData);
+	       	return false;
+	    });	    
+ 
+
+	    // MASTER PEDIDO
+	    $('#i_wish_be_master').click(function(){
+	    	userData = {'userId': localStorage.id,'token': localStorage.token ,'fileId':localStorage.fileId}
+	    	socket.emit('i_wish_be_master', userData);
+	    	socket.emit('test message', userData);
+	       	return false;
+	    });	    
+	    
+	 	// MASTER RESPUESTA
+	    socket.on('new_master', function(msg){
+	    
+	    	console.log()
+	    	if(msg["userId"] == localStorage.id && msg["fileId"] == localStorage.fileId )
+	    	{
+	    		console.log("SOY MASTER");
+	    		i_am_master = true;
+	    	}
+	    	else
+	    	{
+	    		console.log("NO SOY MASTER");
+	    		i_am_master = false;
+	    	}
+	    });	    
+	 	// New join a mi archivo
+	    socket.on('new join', function(msg){
+	    
+	    	console.log()
+	    	if(msg == localStorage.fileId && i_am_master )
+	    	{
+	    		flagCambio = true;
+	    	}
+	    });	 
+	    	
+	    socket.on('file list', function(msg){
+	    	var select = $('#files');
+	    	$('option', select).remove();
+	    	
+	    	$.each(msg, function(text, key) {
+	    		var option = new Option(key, text);
+	        	$('#files').append($(option));
+	    	});
+	    });
+	    
+	    
+	    socket.on('user list', function(msg){
+	    	var select = $('#files');
+	    	$('#users').empty();
+	    	console.log(msg);
+	    	
+	    	if(msg[0] == localStorage.fileId)
+	    	{
+	    		console.log(msg[1]);
+		    	$.each(msg[1], function(index,value) {
+		    		
+		    		if(value.is_master)
+		    		{
+			    		$('#users').append('<div class="row" style="margin-bottom: 5px;"><div class="col-sm-2">\
+		   				<img class="img-circle" src="https://lh5.googleusercontent.com/-b0-k99FZlyE/AAAAAAAAAAI/AAAAAAAAAAA/eu7opA4byxI/photo.jpg?sz=25" \
+						alt="User Pic"> </div><div class="col-sm-6"> ' + value.name + '</div> <div class="col-sm-4">\
+						<span class="label label-success">EDITANDO</span></div></div>');
+		    		}
+		    		else
+		    		{
+			    		$('#users').append('<div class="row" style="margin-bottom: 5px;"><div class="col-sm-2">\
+		      			<img class="img-circle" src="https://lh5.googleusercontent.com/-b0-k99FZlyE/AAAAAAAAAAI/AAAAAAAAAAA/eu7opA4byxI/photo.jpg?sz=25" \
+		   				alt="User Pic"> </div><div class="col-sm-6"> ' + value.name + '</div> <div class="col-sm-4">\
+		   				<span class="label">-------</span></div></div>');
+		    			
+		    		}
+		    		
+	     		});
+	    	}
+	    });
+	    
+	    
+	    
+	    
+	    console.log("EL ID ES:" + localStorage.id);
+	    /*
+	    $('option', select).remove();
+	    $.each(newOptions, function(text, key) {
+	        var option = new Option(key, text);
+	        select.append($(option));
+	    });
+		*/
+	    
+	</script>
+
+</body>
+</html>
