@@ -16,3 +16,4 @@ La idea es que el creador del documento sea el docente y que los alumnos se sume
 Las tecnologías aplicadas a esta primer versión en estado Alpha son: NodeJs como servidor, MySQL como DBM y Boostrap + Js del lado del cliente.
 
 
+![](https://github.com/davilamr/collaborativeEditor/blob/master/dojo/editor.png)
